@@ -1,15 +1,15 @@
 <template>
-  <div>
-    
+  <div style="width: 800px; height: 800px;">
+    <DrawingBoard />
   </div>
+  
 </template>
-<script setup lang="ts">
+
+<script setup>
+import DrawingBoard from '@/components/DrawingBoard.vue'
+
 
 </script>
-
-<style scoped>
-
-</style>
 
 <route lang="yaml">
 meta:

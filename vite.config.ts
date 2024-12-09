@@ -47,6 +47,9 @@ export default defineConfig({
       }
     }
   },
+  optimizeDeps: {
+    include: ['fabric']
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("src", import.meta.url)),
