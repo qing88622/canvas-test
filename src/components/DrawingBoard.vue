@@ -11,12 +11,24 @@
       <el-button type="primary" @click="redo()">下一步</el-button>
 
       <el-button type="primary" @click="pick()">選取</el-button>
-       <!-- <el-button
+      <!-- 圖片上傳 -->
+      <el-upload
+      v-model:file-list="fileList"
+          class="upload-btn"
+          :show-file-list="false"
+          accept="image/*"
+          :auto-upload="false"
+          :on-change="handleImageUpload"
+          list-type="picture-card"
+        >
+          <el-button type="primary">上傳圖片</el-button>
+        </el-upload>
+       <el-button
           type="success"
           @click="exportImage"
         >
-          匯出圖片測試
-        </el-button> -->
+          匯出圖片
+        </el-button>
     </el-row>
     <el-row type="flex" justify="center" style="margin-top: 20px">
       <el-form>
@@ -35,6 +47,19 @@
 // 導入 fabric 第三方庫
 import { fabric } from 'fabric-with-erasing';
 
+const fileList = ref([])
+
+const url =ref("")
+
+const handleImageUpload = async(file) => {
+  await nextTick()
+  // console.log(file)
+  // console.log(fileList.value)
+  if(!fileList.value.length) return
+  url.value=fileList.value[0].url
+  drawCanvas();
+}
+
 // 建立 canvas 實例
 const canvasRef = ref();
 
@@ -42,7 +67,7 @@ const canvasRef = ref();
 const showImgSrc = 'https://images.ctfassets.net/hrltx12pl8hq/3E5SSUuJCKt1KyebMAdr7f/6b98ce27789b03a6b4a62092ea4566b6/Group_5_B.jpg?fit=fill&w=600&h=400';
 
 // 畫筆顏色
-const brushColor = ref('#000');
+const brushColor = ref('#ff0000');
 
 // 畫筆粗細滑塊顯示/隱藏
 const paintBrush = ref(false);
@@ -95,7 +120,7 @@ function redo() {
 const drawCanvas = () => {
   const canvas = document.querySelector('#canvas');
   const img = new Image();
-  img.src = showImgSrc;
+  img.src = url.value;
   img.onload = function () {
     canvasRef.value = new fabric.Canvas(canvas, {
       // width: canvas.width,
@@ -201,17 +226,17 @@ function changeAction(mode) {
 }
 
  // 匯出圖片
-//  const exportImage = () => {
-//     if (!canvasRef.value) return
+ const exportImage = () => {
+    if (!canvasRef.value) return
     
-//     const dataURL = canvasRef.value.toDataURL('image/png')
-//     const link = document.createElement('a')
-//     link.download = 'drawing.png'
-//     link.href = dataURL
-//     link.click()
-//   }
+    const dataURL = canvasRef.value.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.download = 'drawing.png'
+    link.href = dataURL
+    link.click()
+  }
 
 onMounted(() => {
-  drawCanvas();
+  // drawCanvas();
 });
 </script>
