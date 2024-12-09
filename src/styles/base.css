@@ -1,0 +1,53 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--tw-gray-700);
+  /* background: var(--color-background); */
+  transition: color 0.5s, background-color 0.5s;
+  line-height: 1.6;
+  font-family: NotoSansTC, Montserrat, Noto Sans TC, Noto Sans JP, Tahoma, Mitr,
+    Sarabun, Bai Jamjuree, Microsoft JhengHei, SF Pro TC, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全域的自訂樣式 */
+/* body {
+  color: var(--color-secondary);
+  background-color: var(--color-background);
+  line-height: 1.6rem;
+  font-family:
+    NotoSansTC,
+    Montserrat,
+    Noto Sans TC,
+    Noto Sans JP,
+    Tahoma,
+    Mitr,
+    Sarabun,
+    Bai Jamjuree,
+    Microsoft JhengHei,
+    SF Pro TC,
+    sans-serif;
+  letter-spacing: 0.05em;
+} */
+
+/* Element Plus 覆蓋樣式 */
+
+/* .el-form-item__label {
+  color: var(--color-secondary) !important;
+  font-weight: 400;
+} */
+
+/* .el-segmented .el-segmented__item {
+  padding: 0 20px !important;
+} */
