@@ -11,6 +11,7 @@
   "dependencies": {
     "element-plus": "^2.8.8",
     "fabric": "^6.5.3",
+    "fabric-with-erasing": "^1.0.1",
     "modern-normalize": "^3.0.1",
     "pinia": "^2.2.8",
     "vue": "^3.5.13",

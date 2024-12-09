@@ -1,286 +1,217 @@
 <template>
-  <div class="image-editor">
-    canvas--{{ canvas }}
-    <br />
-    canvasContainer--{{ canvasContainer }}
-    <br />
-    fabricCanvas--{{ fabricCanvas }}
-    <br />
-    isDrawing--{{ isDrawing }}
-    <br />
-    <div class="tools mb-4 flex items-center gap-2">
-        <el-upload
-            v-model:file-list="fileList"
-            class="upload-demo"
-            :limit="2"
-            :on-exceed="handleExceed"
-            :auto-upload="false"
+  <div>
+    <canvas ref="canvasRef" id="canvas" width="800" height="600" style="border: 1px solid #ccc;">123</canvas>
+    <el-row type="flex" justify="center" style="margin-top: 50px">
+      <input id="setColor" v-model="brushColor" @change="selectColor" type="color" style="opacity: 0" />
+      <el-button type="primary" @click="openColorSelect">設定畫筆顏色</el-button>
+      <el-button :type="paintBrush ? 'primary' : 'default'" @click="openRangeInput">設定畫筆粗細</el-button>
+      <el-button type="primary" @click.stop="selectEraser(fabricStatus)">{{ fabricStatus ? '使用畫筆' : '使用橡皮擦' }}</el-button>
+      <el-button :type="paintEraser ? 'primary' : 'default'" @click="openBrushNum">設定橡皮擦粗細</el-button>
+      <el-button type="primary" @click="undo()">上一步</el-button>
+      <el-button type="primary" @click="redo()">下一步</el-button>
+
+      <el-button type="primary" @click="pick()">選取</el-button>
+       <!-- <el-button
+          type="success"
+          @click="exportImage"
         >
-            <template #trigger>
-            <el-button type="primary">select file</el-button>
-            </template>
-            <el-button class="ml-3" type="success" @click="toCanvas">
-            upload to server
-            </el-button>
-            <template #tip>
-            <div class="el-upload__tip text-red">
-                limit 1 file, new file will cover the old file
-            </div>
-            </template>
-        </el-upload>
-
-      <!-- <el-upload
-          class="upload-btn"
-          :show-file-list="false"
-          accept="image/*"
-          :before-upload="handleUpload"
-        >
-          <el-button type="primary">上傳圖片</el-button>
-        </el-upload> -->
-
-      <el-button
-        :class="{ 'is-active': currentMode === 'draw' }"
-        @click="setMode('draw')"
-      >
-        畫筆
-      </el-button>
-
-      <el-button
-        :class="{ 'is-active': currentMode === 'rect' }"
-        @click="setMode('rect')"
-      >
-        矩形
-      </el-button>
-
-      <el-color-picker v-model="currentColor" @change="updateBrushColor" />
-
-      <el-button type="success" @click="exportImage"> 匯出圖片 </el-button>
-    </div>
-
-    <div class="canvas-container" ref="canvasContainer">
-      <canvas ref="canvas"></canvas>
-    </div>
+          匯出圖片測試
+        </el-button> -->
+    </el-row>
+    <el-row type="flex" justify="center" style="margin-top: 20px">
+      <el-form>
+        <el-form-item v-if="paintBrush" label="設定畫筆粗細">
+          <el-slider style="width: 200px" v-model="brushNum" @change="changeBrushNum" />
+        </el-form-item>
+        <el-form-item v-if="paintEraser" label="設定橡皮擦粗細">
+          <el-slider style="width: 200px" v-model="eraser" @change="changeEraserNum" />
+        </el-form-item>
+      </el-form>
+    </el-row>
   </div>
 </template>
 
-<script setup lang="ts">
-//   import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { Canvas, Rect, PencilBrush, Image as FabricImage } from "fabric";
-import { ElMessage } from "element-plus";;
+<script setup>
+// 導入 fabric 第三方庫
+import { fabric } from 'fabric-with-erasing';
 
+// 建立 canvas 實例
+const canvasRef = ref();
 
-//#region
-const canvas = ref(null);
-const canvasContainer = ref(null);
-const fabricCanvas = ref(null);
-const currentColor = ref("#000000");
-const currentMode = ref("draw");
-const isDrawing = ref(false);
-let startPoint = null;
-let currentObject = null;
+// 畫布中預設顯示的圖片路徑
+const showImgSrc = 'https://images.ctfassets.net/hrltx12pl8hq/3E5SSUuJCKt1KyebMAdr7f/6b98ce27789b03a6b4a62092ea4566b6/Group_5_B.jpg?fit=fill&w=600&h=400';
 
-// 初始化畫布
-const initializeCanvas = () => {
-  if (!canvas.value || !canvasContainer.value) return;
+// 畫筆顏色
+const brushColor = ref('#000');
 
-  const container = canvasContainer.value;
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+// 畫筆粗細滑塊顯示/隱藏
+const paintBrush = ref(false);
 
-  // 設置畫布大小
-  fabricCanvas.value = new Canvas(canvas.value, {
-    width,
-    height,
-    isDrawingMode: true,
-    backgroundColor: "#ffffff",
-  });
+// 畫筆粗細
+const brushNum = ref(10);
 
-  // 初始化畫筆
-  const pencilBrush = new PencilBrush(fabricCanvas.value);
-  pencilBrush.color = currentColor.value;
-  pencilBrush.width = 2;
-  fabricCanvas.value.freeDrawingBrush = pencilBrush;
+// 橡皮擦粗細滑塊顯示/隱藏
+const paintEraser = ref(false);
 
-  // 添加事件監聽
-  fabricCanvas.value.on("mouse:down", handleMouseDown);
-  fabricCanvas.value.on("mouse:move", handleMouseMove);
-  fabricCanvas.value.on("mouse:up", handleMouseUp);
-};
+// 橡皮擦粗細
+const eraser = ref(10);
 
-// 處理圖片上傳
-const handleUpload = (file) => {
-  if (!file) return false;
+// 當前狀態為畫筆/橡皮擦
+const fabricStatus = ref(false);
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const imgURL = e.target.result;
-    FabricImage.fromURL(imgURL, (img) => {
-      // 清除現有內容
-      fabricCanvas.value.clear();
+// 撤銷的快照陣列，用來記錄歷史
+let undoList = [];
 
-      // 調整圖片大小以適應畫布
-      const canvasWidth = fabricCanvas.value.width;
-      const canvasHeight = fabricCanvas.value.height;
-      const scale = Math.min(
-        canvasWidth / img.width,
-        canvasHeight / img.height
-      );
+// 恢復的快照陣列，用來記錄歷史
+let redoList = [];
 
-      img.scale(scale);
+// 添加新狀態到歷史記錄中
+function saveState() {
+  undoList.push(JSON.stringify(canvasRef.value.toDatalessJSON()));
+}
 
-      // 置中圖片
-      img.center();
-
-      // 設置為背景
-      fabricCanvas.value.setBackgroundImage(
-        img,
-        fabricCanvas.value.renderAll.bind(fabricCanvas.value)
-      );
-
-      ElMessage.success("圖片上傳成功");
+// 撤銷操作
+function undo() {
+  if (undoList.length !== 0) {
+    const last = undoList.pop();
+    redoList.push(last);
+    canvasRef.value.loadFromJSON(last, function () {
+      canvasRef.value.renderAll();
     });
+  }
+}
+
+// 恢復操作
+function redo() {
+  if (redoList.length !== 0) {
+    undoList.push(redoList.pop());
+    canvasRef.value.loadFromJSON(redoList[redoList.length - 1], function () {
+      canvasRef.value.renderAll();
+    });
+  }
+}
+
+// 將圖片繪製到 canvas 中
+const drawCanvas = () => {
+  const canvas = document.querySelector('#canvas');
+  const img = new Image();
+  img.src = showImgSrc;
+  img.onload = function () {
+    canvasRef.value = new fabric.Canvas(canvas, {
+      // width: canvas.width,
+      // height: canvas.height,
+      width: img.width,
+      height: img.height,
+      selection: false,
+      isDrawingMode: true,
+      devicePixelRatio: true,
+    });
+
+    let imgLayer = new fabric.Image(img, {
+      erasable: false,
+      selectable: false,
+      // left: (canvas.width - img.width) / 2,
+      // top: (canvas.height - img.height) / 2,
+    });
+
+    canvasRef.value.add(imgLayer);
+
+    canvasRef.value.on('mouse:down', function () {
+      saveState();
+    });
+
+    canvasRef.value.on('mouse:up', function () {
+      saveState();
+    });
+
+    // canvasRef.value.on('mouse:wheel', event => {
+    //   var delta = event.e.deltaY;
+    //   var zoom = canvasRef.value.getZoom();
+    //   zoom *= 0.999 ** delta;
+    //   if (zoom > 1.5) zoom = 1.5;
+    //   if (zoom < 0.5) zoom = 0.5;
+    //   canvasRef.value.zoomToPoint({ x: event.e.offsetX, y: event.e.offsetY }, zoom);
+    //   event.e.preventDefault();
+    //   event.e.stopPropagation();
+    // });
   };
-  reader.readAsDataURL(file);
-  return false; // 阻止 el-upload 默認上傳行為
 };
 
-// 更新畫筆顏色
-const updateBrushColor = (color) => {
-  if (fabricCanvas.value && fabricCanvas.value.freeDrawingBrush) {
-    fabricCanvas.value.freeDrawingBrush.color = color;
+// 打開顏色選擇器
+const openColorSelect = () => {
+  nextTick(() => document.querySelector('#setColor').click());
+};
+
+// 修改畫筆顏色
+const selectColor = ({ target }) => {
+  canvasRef.value.freeDrawingBrush.color = target.value;
+};
+
+// 切換橡皮擦/畫筆狀態
+const selectEraser = status => {
+  if (!status) {
+    changeAction('erase');
+  } else {
+    changeAction('undoErasing');
   }
+  fabricStatus.value = !fabricStatus.value;
 };
 
-// 設置繪圖模式
-const setMode = (mode) => {
-  currentMode.value = mode;
-  if (fabricCanvas.value) {
-    fabricCanvas.value.isDrawingMode = mode === "draw";
+// 打開/關閉畫筆粗細滑塊
+const openRangeInput = () => {
+  paintBrush.value = !paintBrush.value;
+};
+
+// 修改畫筆粗細
+const changeBrushNum = () => {
+  canvasRef.value.freeDrawingBrush.width = brushNum.value;
+  changeAction(fabricStatus.value ? 'erase' : 'undoErasing');
+};
+
+// 打開/關閉橡皮擦粗細滑塊
+const openBrushNum = () => {
+  paintEraser.value = !paintEraser.value;
+};
+
+// 修改橡皮擦粗細
+const changeEraserNum = () => {
+  canvasRef.value.freeDrawingBrush.width = eraser.value;
+  changeAction(fabricStatus.value ? 'erase' : 'undoErasing');
+};
+
+const pick = () => {
+  canvasRef.value.isDrawingMode = false;
+};
+
+// 修改畫布行為模式
+function changeAction(mode) {
+  switch (mode) {
+    case 'erase':
+      canvasRef.value.freeDrawingBrush = new fabric.EraserBrush(canvasRef.value);
+      canvasRef.value.freeDrawingBrush.width = eraser.value;
+      break;
+    case 'undoErasing':
+      canvasRef.value.freeDrawingBrush = new fabric.PencilBrush(canvasRef.value);
+      canvasRef.value.freeDrawingBrush.color = brushColor.value;
+      canvasRef.value.freeDrawingBrush.width = brushNum.value;
+      canvasRef.value.freeDrawingBrush.selectable = false
+    default:
+      break;
   }
-};
-
-// 矩形繪製相關函數
-const handleMouseDown = (e) => {
-  if (currentMode.value !== "rect") return;
-
-  isDrawing.value = true;
-  const pointer = fabricCanvas.value.getPointer(e);
-  startPoint = pointer;
-
-  const rect = new Rect({
-    left: pointer.x,
-    top: pointer.y,
-    width: 0,
-    height: 0,
-    fill: "transparent",
-    stroke: currentColor.value,
-    strokeWidth: 2,
-  });
-
-  fabricCanvas.value.add(rect);
-  currentObject = rect;
-};
-
-const handleMouseMove = (e) => {
-  if (!isDrawing.value || currentMode.value !== "rect") return;
-
-  const pointer = fabricCanvas.value.getPointer(e);
-
-  if (startPoint.x > pointer.x) {
-    currentObject.set({ left: pointer.x });
-  }
-  if (startPoint.y > pointer.y) {
-    currentObject.set({ top: pointer.y });
-  }
-
-  currentObject.set({
-    width: Math.abs(startPoint.x - pointer.x),
-    height: Math.abs(startPoint.y - pointer.y),
-  });
-
-  fabricCanvas.value.renderAll();
-};
-
-const handleMouseUp = () => {
-  isDrawing.value = false;
-  currentObject = null;
-};
-
-// 匯出圖片
-const exportImage = () => {
-  if (fabricCanvas.value) {
-    const dataURL = fabricCanvas.value.toDataURL({
-      format: "png",
-      quality: 1,
-    });
-    const link = document.createElement("a");
-    link.download = "edited-image.png";
-    link.href = dataURL;
-    link.click();
-  }
-};
-
-// 生命週期鉤子
-onMounted(async () => {
-  await nextTick();
-  initializeCanvas();
-});
-
-onUnmounted(() => {
-  if (fabricCanvas.value) {
-    fabricCanvas.value.dispose();
-  }
-});
-//#endregion
-
-import { genFileId } from 'element-plus'
-import type { UploadProps, UploadUserFile, UploadInstance,  UploadRawFile } from "element-plus";
-
-const fileList = ref<UploadUserFile[]>([
-  {
-    name: "food.jpeg",
-    url: "https://fuss10.elemecdn.com/3/63/4e7f3a15429bfda99bce42a18cdd1jpeg.jpeg?imageMogr2/thumbnail/360x360/format/webp/quality/100",
-  },
-]);
-
-const upload = ref<UploadInstance>()
-
-const handleExceed: UploadProps['onExceed'] = (files) => {
-//   upload.value!.clearFiles()
-//   const file = files[0] as UploadRawFile
-//   file.uid = genFileId()
-//   upload.value!.handleStart(file)
 }
 
-const toCanvas = () => {
-    console.log(fileList.value)
-}
+ // 匯出圖片
+//  const exportImage = () => {
+//     if (!canvasRef.value) return
+    
+//     const dataURL = canvasRef.value.toDataURL('image/png')
+//     const link = document.createElement('a')
+//     link.download = 'drawing.png'
+//     link.href = dataURL
+//     link.click()
+//   }
+
+onMounted(() => {
+  drawCanvas();
+});
 </script>
-
-<style scoped>
-.image-editor {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.canvas-container {
-  flex: 1;
-  min-height: 600px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-}
-
-.tools {
-  padding: 8px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-}
-
-.is-active {
-  background-color: #409eff;
-  color: white;
-}
-</style>
