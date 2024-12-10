@@ -11,6 +11,8 @@
       <el-button type="primary" @click="redo()">下一步</el-button>
 
       <el-button type="primary" @click="pick()">選取</el-button>
+      <el-button :type="isRectMode ? 'primary' : 'default'" @click="toggleRectMode">繪製矩形</el-button>
+
       <!-- 圖片上傳 -->
       <el-upload
       v-model:file-list="fileList"
@@ -73,13 +75,13 @@ const brushColor = ref('#ff0000');
 const paintBrush = ref(false);
 
 // 畫筆粗細
-const brushNum = ref(20);
+const brushNum = ref(10);
 
 // 橡皮擦粗細滑塊顯示/隱藏
 const paintEraser = ref(false);
 
 // 橡皮擦粗細
-const eraser = ref(20);
+const eraser = ref(10);
 
 // 當前狀態為 畫筆false/橡皮擦true
 const fabricStatus = ref(false);
@@ -89,6 +91,99 @@ let undoList = [];
 
 // 恢復的快照陣列，用來記錄歷史
 let redoList = [];
+
+//#region 矩形
+const isRectMode = ref(false);
+const isDrawing = ref(false);
+const tempRect = ref(null);
+
+// Rectangle drawing mode toggle
+const toggleRectMode = () => {
+  isRectMode.value = !isRectMode.value;
+  if (isRectMode.value) {
+    canvasRef.value.isDrawingMode = false;
+    setupRectangleDrawing();
+  } else {
+    canvasRef.value.isDrawingMode = true;
+    removeRectangleDrawing();
+  }
+};
+
+// Set up rectangle drawing event listeners
+const setupRectangleDrawing = () => {
+  if (!canvasRef.value) return;
+  
+  canvasRef.value.on('mouse:down', handleMouseDown);
+  canvasRef.value.on('mouse:move', handleMouseMove);
+  canvasRef.value.on('mouse:up', handleMouseUp);
+};
+
+// Remove rectangle drawing event listeners
+const removeRectangleDrawing = () => {
+  if (!canvasRef.value) return;
+  
+  canvasRef.value.off('mouse:down', handleMouseDown);
+  canvasRef.value.off('mouse:move', handleMouseMove);
+  canvasRef.value.off('mouse:up', handleMouseUp);
+};
+
+// Handle mouse down event for rectangle drawing
+const handleMouseDown = (options) => {
+  if (!isRectMode.value) return;
+  
+  isDrawing.value = true;
+  const pointer = canvasRef.value.getPointer(options.e);
+  
+  // Create new rectangle
+  tempRect.value = new fabric.Rect({
+    left: pointer.x,
+    top: pointer.y,
+    width: 0,
+    height: 0,
+    fill: 'transparent',
+    stroke: brushColor.value,
+    strokeWidth: brushNum.value
+  });
+  
+  canvasRef.value.add(tempRect.value);
+  canvasRef.value.renderAll();
+};
+
+// Handle mouse move event for rectangle drawing
+const handleMouseMove = (options) => {
+  if (!isRectMode.value || !isDrawing.value || !tempRect.value) return;
+  
+  const pointer = canvasRef.value.getPointer(options.e);
+  const startX = tempRect.value.left;
+  const startY = tempRect.value.top;
+  
+  let width = Math.abs(startX - pointer.x);
+  let height = Math.abs(startY - pointer.y);
+  
+  // Update rectangle position and size
+  if (pointer.x < startX) {
+    tempRect.value.set('left', pointer.x);
+  }
+  if (pointer.y < startY) {
+    tempRect.value.set('top', pointer.y);
+  }
+  
+  tempRect.value.set('width', width);
+  tempRect.value.set('height', height);
+  
+  canvasRef.value.renderAll();
+};
+
+// Handle mouse up event for rectangle drawing
+const handleMouseUp = () => {
+  if (!isRectMode.value || !isDrawing.value) return;
+  
+  isDrawing.value = false;
+  tempRect.value.setCoords();
+  saveState();
+  tempRect.value = null;
+};
+//#endregion
 
 // 添加新狀態到歷史記錄中
 function saveState() {
@@ -141,12 +236,17 @@ const drawCanvas = () => {
 
     canvasRef.value.add(imgLayer);
 
+    canvasRef.value.freeDrawingBrush.width=brushNum.value
+    canvasRef.value.freeDrawingBrush.color=brushColor.value
+
     canvasRef.value.on('mouse:down', function () {
-      saveState();
+      // saveState();
+      if (!isRectMode.value) saveState();
     });
 
     canvasRef.value.on('mouse:up', function () {
-      saveState();
+      // saveState();
+      if (!isRectMode.value) saveState();
     });
 
     // canvasRef.value.on('mouse:wheel', event => {
