@@ -22,7 +22,9 @@
         <el-button type="success" plain>上傳圖片</el-button>
       </el-upload>
       <!-- 匯出圖片 -->
-      <el-button type="success" @click="exportImage" style="margin-left: 24px;">匯出圖片</el-button>
+      <el-button type="success" @click="exportImage" style="margin-left: 24px"
+        >匯出圖片</el-button
+      >
     </el-row>
 
     <el-row type="flex" justify="center" style="margin-top: 30px">
@@ -37,12 +39,12 @@
       <!-- <el-button :type="paintBrush ? 'primary' : 'default'" @click="openRangeInput">設定畫筆粗細</el-button> -->
 
       <el-button
-        :type="!isEraser ? 'primary' : ''"
+        :type="toolType === 'brush' ? 'primary' : ''"
         @click.stop="setTool('brush')"
         >畫筆</el-button
       >
       <el-button
-        :type="isEraser ? 'primary' : ''"
+        :type="toolType === 'eraser' ? 'primary' : ''"
         @click.stop="setTool('eraser')"
         >橡皮擦</el-button
       >
@@ -51,10 +53,14 @@
 
       <el-button
         :type="isRectMode ? 'primary' : 'default'"
-        @click="toggleRectMode"
+        @click="setTool('rect')"
         >矩形</el-button
       >
-      <el-button type="primary" @click="pick()">選取</el-button>
+      <el-button
+        :type="toolType === 'pick' ? 'primary' : ''"
+        @click="setTool('pick')"
+        >選取</el-button
+      >
       <!-- 上一步 -->
       <el-button @click="undo()">
         <svg
@@ -94,7 +100,7 @@
     </el-row>
     <el-row type="flex" justify="center" style="margin-top: 20px">
       <el-form>
-        <el-form-item v-if="!isEraser" label="畫筆粗細">
+        <el-form-item v-if="!isEraserSlider" label="畫筆粗細">
           <el-slider
             style="width: 200px"
             v-model="brushNum"
@@ -104,7 +110,7 @@
         <el-form-item v-else label="橡皮擦粗細">
           <el-slider
             style="width: 200px"
-            v-model="eraser"
+            v-model="eraserNum"
             @change="changeEraserNum"
           />
         </el-form-item>
@@ -150,10 +156,10 @@ const brushNum = ref(10);
 // const paintEraser = ref(false);
 
 // 橡皮擦粗細
-const eraser = ref(10);
+const eraserNum = ref(10);
 
-// 當前狀態為 畫筆false/橡皮擦true
-const isEraser = ref(false);
+// 控制粗細為 畫筆false/橡皮擦true
+const isEraserSlider = ref(false);
 
 // 撤銷的快照陣列，用來記錄歷史
 let undoList = [];
@@ -167,16 +173,33 @@ const isDrawing = ref(false);
 const tempRect = ref(null);
 
 // Rectangle drawing mode toggle
-const toggleRectMode = () => {
-  isRectMode.value = !isRectMode.value;
-  if (isRectMode.value) {
-    canvasRef.value.isDrawingMode = false;
-    setupRectangleDrawing();
-  } else {
-    canvasRef.value.isDrawingMode = true;
-    removeRectangleDrawing();
+// const toggleRectMode = () => {
+//   isRectMode.value = !isRectMode.value;
+//   if (isRectMode.value) {
+//     canvasRef.value.isDrawingMode = false;
+//     setupRectangleDrawing();
+//   } else {
+//     canvasRef.value.isDrawingMode = true;
+//     removeRectangleDrawing();
+//   }
+// };
+
+watch(
+  () => isRectMode.value,
+  (newVal) => {
+    console.log(newVal);
+    if (newVal) {
+      canvasRef.value.isDrawingMode = false;
+      // canvasRef.value.freeDrawingBrush.selectable = false
+      setupRectangleDrawing();
+    } else {
+      if (toolType.value === "brush" || toolType.value === "eraser") {
+        canvasRef.value.isDrawingMode = true;
+      }
+      removeRectangleDrawing();
+    }
   }
-};
+);
 
 // Set up rectangle drawing event listeners
 const setupRectangleDrawing = () => {
@@ -212,6 +235,8 @@ const handleMouseDown = (options) => {
     fill: "transparent",
     stroke: brushColor.value,
     strokeWidth: brushNum.value,
+    selectable: false, // 初始設置為不可選取
+    evented: false,
   });
 
   canvasRef.value.add(tempRect.value);
@@ -318,6 +343,12 @@ const drawCanvas = () => {
       if (!isRectMode.value) saveState();
     });
 
+    canvasRef.value.on("path:created", function (e) {
+      const path = e.path;
+      path.selectable = false;
+      path.evented = false;
+    });
+
     // canvasRef.value.on('mouse:wheel', event => {
     //   var delta = event.e.deltaY;
     //   var zoom = canvasRef.value.getZoom();
@@ -341,18 +372,65 @@ const selectColor = ({ target }) => {
   canvasRef.value.freeDrawingBrush.color = target.value;
 };
 
+const toolType = ref("brush");
+
 // 切換橡皮擦/畫筆狀態
 const setTool = (tool) => {
-  if (tool === "eraser") {
-    changeAction("erase");
-    isEraser.value = true;
-  } else if (tool === "brush") {
-    changeAction("undoErasing");
-    isEraser.value = false;
-  } else {
-    console.log("setTool else");
+  toolType.value = tool;
+  switch (tool) {
+    case "eraser":
+      isEraserSlider.value = true;
+      isRectMode.value = false;
+
+      setObjectsSelectable(false); // 禁止選取
+      canvasRef.value.isDrawingMode = true;
+      changeAction("eraser");
+      break;
+
+    case "brush":
+      isEraserSlider.value = false;
+      isRectMode.value = false;
+
+      setObjectsSelectable(false); // 禁止選取
+      canvasRef.value.isDrawingMode = true;
+      changeAction("undoErasing");
+      break;
+
+    case "rect":
+      isEraserSlider.value = false; //矩形用畫筆粗度
+      isRectMode.value = true;
+      canvasRef.value.isDrawingMode = false;
+      setObjectsSelectable(false); // 禁止選取
+      break;
+
+    case "pick":
+      isRectMode.value = false;
+      canvasRef.value.isDrawingMode = false;
+      setObjectsSelectable(true); // 允許選取
+      break;
+
+    default:
+      console.log("setTool else");
+      break;
   }
-  // isEraser.value = !isEraser.value;
+};
+
+// 新增控制所有物件是否可選取的函數
+const setObjectsSelectable = (selectable) => {
+  if (!canvasRef.value) return;
+
+  // 設置所有物件的可選取狀態
+  canvasRef.value.getObjects().forEach((obj) => {
+    if (obj.type !== "image") {
+      // 排除背景圖片
+      obj.selectable = selectable;
+      obj.evented = selectable;
+    }
+  });
+
+  // 設置整個畫布的選取狀態
+  canvasRef.value.selection = selectable;
+  canvasRef.value.renderAll();
 };
 
 // 打開/關閉畫筆粗細滑塊
@@ -363,7 +441,7 @@ const openRangeInput = () => {
 // 修改畫筆粗細
 const changeBrushNum = () => {
   canvasRef.value.freeDrawingBrush.width = brushNum.value;
-  changeAction(isEraser.value ? "erase" : "undoErasing");
+  // changeAction(isEraserSlider.value ? "erase" : "undoErasing");
 };
 
 // 打開/關閉橡皮擦粗細滑塊
@@ -373,24 +451,24 @@ const changeBrushNum = () => {
 
 // 修改橡皮擦粗細
 const changeEraserNum = () => {
-  canvasRef.value.freeDrawingBrush.width = eraser.value;
-  changeAction(isEraser.value ? "erase" : "undoErasing");
+  canvasRef.value.freeDrawingBrush.width = eraserNum.value;
+  // changeAction(isEraserSlider.value ? "erase" : "undoErasing");
 };
 
 //繪圖/選取
-const pick = () => {
-  canvasRef.value.isDrawingMode = !canvasRef.value.isDrawingMode;
-};
+// const pick = () => {
+//   canvasRef.value.isDrawingMode = false;
+// };
 
 // 修改畫布行為模式
 function changeAction(mode) {
-  // console.log(mode)
+  console.log(mode);
   switch (mode) {
-    case "erase":
+    case "eraser":
       canvasRef.value.freeDrawingBrush = new fabric.EraserBrush(
         canvasRef.value
       );
-      canvasRef.value.freeDrawingBrush.width = eraser.value;
+      canvasRef.value.freeDrawingBrush.width = eraserNum.value;
       break;
     case "undoErasing":
       canvasRef.value.freeDrawingBrush = new fabric.PencilBrush(
