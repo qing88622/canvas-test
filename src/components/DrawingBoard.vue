@@ -1,44 +1,112 @@
 <template>
   <div>
-    <canvas ref="canvasRef" id="canvas" width="800" height="600" style="border: 1px solid #ccc;">123</canvas>
-    <el-row type="flex" justify="center" style="margin-top: 50px">
-      <input id="setColor" v-model="brushColor" @change="selectColor" type="color" style="opacity: 0" />
-      <el-button type="primary" @click="openColorSelect">設定畫筆顏色</el-button>
-      <el-button :type="paintBrush ? 'primary' : 'default'" @click="openRangeInput">設定畫筆粗細</el-button>
-      <el-button type="primary" @click.stop="selectEraser(fabricStatus)">{{ fabricStatus ? '使用畫筆' : '使用橡皮擦' }}</el-button>
-      <el-button :type="paintEraser ? 'primary' : 'default'" @click="openBrushNum">設定橡皮擦粗細</el-button>
-      <el-button type="primary" @click="undo()">上一步</el-button>
-      <el-button type="primary" @click="redo()">下一步</el-button>
-
-      <el-button type="primary" @click="pick()">選取</el-button>
-      <el-button :type="isRectMode ? 'primary' : 'default'" @click="toggleRectMode">繪製矩形</el-button>
-
+    <canvas
+      ref="canvasRef"
+      id="canvas"
+      width="800"
+      height="600"
+      style="border: 1px solid #ccc"
+      >123</canvas
+    >
+    <el-row type="flex" justify="center" style="margin-top: 8px">
       <!-- 圖片上傳 -->
       <el-upload
-      v-model:file-list="fileList"
-          class="upload-btn"
-          :show-file-list="false"
-          accept="image/*"
-          :auto-upload="false"
-          :on-change="handleImageUpload"
-          list-type="picture-card"
+        v-model:file-list="fileList"
+        class="upload-btn"
+        :show-file-list="false"
+        accept="image/*"
+        :auto-upload="false"
+        :on-change="handleImageUpload"
+        list-type="picture"
+      >
+        <el-button type="success" plain>上傳圖片</el-button>
+      </el-upload>
+      <!-- 匯出圖片 -->
+      <el-button type="success" @click="exportImage" style="margin-left: 24px;">匯出圖片</el-button>
+    </el-row>
+
+    <el-row type="flex" justify="center" style="margin-top: 30px">
+      <input
+        id="setColor"
+        v-model="brushColor"
+        @change="selectColor"
+        type="color"
+        style="opacity: 0"
+      />
+      <el-button @click="openColorSelect">顏色</el-button>
+      <!-- <el-button :type="paintBrush ? 'primary' : 'default'" @click="openRangeInput">設定畫筆粗細</el-button> -->
+
+      <el-button
+        :type="!isEraser ? 'primary' : ''"
+        @click.stop="setTool('brush')"
+        >畫筆</el-button
+      >
+      <el-button
+        :type="isEraser ? 'primary' : ''"
+        @click.stop="setTool('eraser')"
+        >橡皮擦</el-button
+      >
+
+      <!-- <el-button :type="paintEraser ? 'primary' : 'default'" @click="openBrushNum">設定橡皮擦粗細</el-button> -->
+
+      <el-button
+        :type="isRectMode ? 'primary' : 'default'"
+        @click="toggleRectMode"
+        >矩形</el-button
+      >
+      <el-button type="primary" @click="pick()">選取</el-button>
+      <!-- 上一步 -->
+      <el-button @click="undo()">
+        <svg
+          style="width: 16px"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="size-6"
         >
-          <el-button type="primary">上傳圖片</el-button>
-        </el-upload>
-       <el-button
-          type="success"
-          @click="exportImage"
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
+          />
+        </svg>
+      </el-button>
+      <!-- 下一步 -->
+      <el-button @click="redo()">
+        <svg
+          style="width: 16px"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="size-6"
         >
-          匯出圖片
-        </el-button>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3"
+          />
+        </svg>
+      </el-button>
     </el-row>
     <el-row type="flex" justify="center" style="margin-top: 20px">
       <el-form>
-        <el-form-item v-if="paintBrush" label="設定畫筆粗細">
-          <el-slider style="width: 200px" v-model="brushNum" @change="changeBrushNum" />
+        <el-form-item v-if="!isEraser" label="畫筆粗細">
+          <el-slider
+            style="width: 200px"
+            v-model="brushNum"
+            @change="changeBrushNum"
+          />
         </el-form-item>
-        <el-form-item v-if="paintEraser" label="設定橡皮擦粗細">
-          <el-slider style="width: 200px" v-model="eraser" @change="changeEraserNum" />
+        <el-form-item v-else label="橡皮擦粗細">
+          <el-slider
+            style="width: 200px"
+            v-model="eraser"
+            @change="changeEraserNum"
+          />
         </el-form-item>
       </el-form>
     </el-row>
@@ -47,44 +115,45 @@
 
 <script setup>
 // 導入 fabric 第三方庫
-import { fabric } from 'fabric-with-erasing';
+import { fabric } from "fabric-with-erasing";
 
-const fileList = ref([])
+const fileList = ref([]);
 
-const url =ref("")
+const url = ref("");
 
-const handleImageUpload = async(file) => {
-  await nextTick()
+const handleImageUpload = async (file) => {
+  await nextTick();
   // console.log(file)
   // console.log(fileList.value)
-  if(!fileList.value.length) return
-  url.value=fileList.value[0].url
+  if (!fileList.value.length) return;
+  url.value = fileList.value[0].url;
   drawCanvas();
-}
+};
 
 // 建立 canvas 實例
 const canvasRef = ref();
 
 // 畫布中預設顯示的圖片路徑
-const showImgSrc = 'https://images.ctfassets.net/hrltx12pl8hq/3E5SSUuJCKt1KyebMAdr7f/6b98ce27789b03a6b4a62092ea4566b6/Group_5_B.jpg?fit=fill&w=600&h=400';
+const showImgSrc =
+  "https://images.ctfassets.net/hrltx12pl8hq/3E5SSUuJCKt1KyebMAdr7f/6b98ce27789b03a6b4a62092ea4566b6/Group_5_B.jpg?fit=fill&w=600&h=400";
 
 // 畫筆顏色
-const brushColor = ref('#ff0000');
+const brushColor = ref("#ff0000");
 
 // 畫筆粗細滑塊顯示/隱藏
-const paintBrush = ref(false);
+// const paintBrush = ref(true);
 
 // 畫筆粗細
 const brushNum = ref(10);
 
 // 橡皮擦粗細滑塊顯示/隱藏
-const paintEraser = ref(false);
+// const paintEraser = ref(false);
 
 // 橡皮擦粗細
 const eraser = ref(10);
 
 // 當前狀態為 畫筆false/橡皮擦true
-const fabricStatus = ref(false);
+const isEraser = ref(false);
 
 // 撤銷的快照陣列，用來記錄歷史
 let undoList = [];
@@ -112,39 +181,39 @@ const toggleRectMode = () => {
 // Set up rectangle drawing event listeners
 const setupRectangleDrawing = () => {
   if (!canvasRef.value) return;
-  
-  canvasRef.value.on('mouse:down', handleMouseDown);
-  canvasRef.value.on('mouse:move', handleMouseMove);
-  canvasRef.value.on('mouse:up', handleMouseUp);
+
+  canvasRef.value.on("mouse:down", handleMouseDown);
+  canvasRef.value.on("mouse:move", handleMouseMove);
+  canvasRef.value.on("mouse:up", handleMouseUp);
 };
 
 // Remove rectangle drawing event listeners
 const removeRectangleDrawing = () => {
   if (!canvasRef.value) return;
-  
-  canvasRef.value.off('mouse:down', handleMouseDown);
-  canvasRef.value.off('mouse:move', handleMouseMove);
-  canvasRef.value.off('mouse:up', handleMouseUp);
+
+  canvasRef.value.off("mouse:down", handleMouseDown);
+  canvasRef.value.off("mouse:move", handleMouseMove);
+  canvasRef.value.off("mouse:up", handleMouseUp);
 };
 
 // Handle mouse down event for rectangle drawing
 const handleMouseDown = (options) => {
   if (!isRectMode.value) return;
-  
+
   isDrawing.value = true;
   const pointer = canvasRef.value.getPointer(options.e);
-  
+
   // Create new rectangle
   tempRect.value = new fabric.Rect({
     left: pointer.x,
     top: pointer.y,
     width: 0,
     height: 0,
-    fill: 'transparent',
+    fill: "transparent",
     stroke: brushColor.value,
-    strokeWidth: brushNum.value
+    strokeWidth: brushNum.value,
   });
-  
+
   canvasRef.value.add(tempRect.value);
   canvasRef.value.renderAll();
 };
@@ -152,32 +221,32 @@ const handleMouseDown = (options) => {
 // Handle mouse move event for rectangle drawing
 const handleMouseMove = (options) => {
   if (!isRectMode.value || !isDrawing.value || !tempRect.value) return;
-  
+
   const pointer = canvasRef.value.getPointer(options.e);
   const startX = tempRect.value.left;
   const startY = tempRect.value.top;
-  
+
   let width = Math.abs(startX - pointer.x);
   let height = Math.abs(startY - pointer.y);
-  
+
   // Update rectangle position and size
   if (pointer.x < startX) {
-    tempRect.value.set('left', pointer.x);
+    tempRect.value.set("left", pointer.x);
   }
   if (pointer.y < startY) {
-    tempRect.value.set('top', pointer.y);
+    tempRect.value.set("top", pointer.y);
   }
-  
-  tempRect.value.set('width', width);
-  tempRect.value.set('height', height);
-  
+
+  tempRect.value.set("width", width);
+  tempRect.value.set("height", height);
+
   canvasRef.value.renderAll();
 };
 
 // Handle mouse up event for rectangle drawing
 const handleMouseUp = () => {
   if (!isRectMode.value || !isDrawing.value) return;
-  
+
   isDrawing.value = false;
   tempRect.value.setCoords();
   saveState();
@@ -213,7 +282,7 @@ function redo() {
 
 // 將圖片繪製到 canvas 中
 const drawCanvas = () => {
-  const canvas = document.querySelector('#canvas');
+  const canvas = document.querySelector("#canvas");
   const img = new Image();
   img.src = url.value;
   img.onload = function () {
@@ -236,15 +305,15 @@ const drawCanvas = () => {
 
     canvasRef.value.add(imgLayer);
 
-    canvasRef.value.freeDrawingBrush.width=brushNum.value
-    canvasRef.value.freeDrawingBrush.color=brushColor.value
+    canvasRef.value.freeDrawingBrush.width = brushNum.value;
+    canvasRef.value.freeDrawingBrush.color = brushColor.value;
 
-    canvasRef.value.on('mouse:down', function () {
+    canvasRef.value.on("mouse:down", function () {
       // saveState();
       if (!isRectMode.value) saveState();
     });
 
-    canvasRef.value.on('mouse:up', function () {
+    canvasRef.value.on("mouse:up", function () {
       // saveState();
       if (!isRectMode.value) saveState();
     });
@@ -264,7 +333,7 @@ const drawCanvas = () => {
 
 // 打開顏色選擇器
 const openColorSelect = () => {
-  nextTick(() => document.querySelector('#setColor').click());
+  nextTick(() => document.querySelector("#setColor").click());
 };
 
 // 修改畫筆顏色
@@ -273,13 +342,17 @@ const selectColor = ({ target }) => {
 };
 
 // 切換橡皮擦/畫筆狀態
-const selectEraser = status => {
-  if (!status) {
-    changeAction('erase');
+const setTool = (tool) => {
+  if (tool === "eraser") {
+    changeAction("erase");
+    isEraser.value = true;
+  } else if (tool === "brush") {
+    changeAction("undoErasing");
+    isEraser.value = false;
   } else {
-    changeAction('undoErasing');
+    console.log("setTool else");
   }
-  fabricStatus.value = !fabricStatus.value;
+  // isEraser.value = !isEraser.value;
 };
 
 // 打開/關閉畫筆粗細滑塊
@@ -290,18 +363,18 @@ const openRangeInput = () => {
 // 修改畫筆粗細
 const changeBrushNum = () => {
   canvasRef.value.freeDrawingBrush.width = brushNum.value;
-  changeAction(fabricStatus.value ? 'erase' : 'undoErasing');
+  changeAction(isEraser.value ? "erase" : "undoErasing");
 };
 
 // 打開/關閉橡皮擦粗細滑塊
-const openBrushNum = () => {
-  paintEraser.value = !paintEraser.value;
-};
+// const openBrushNum = () => {
+//   paintEraser.value = !paintEraser.value;
+// };
 
 // 修改橡皮擦粗細
 const changeEraserNum = () => {
   canvasRef.value.freeDrawingBrush.width = eraser.value;
-  changeAction(fabricStatus.value ? 'erase' : 'undoErasing');
+  changeAction(isEraser.value ? "erase" : "undoErasing");
 };
 
 //繪圖/選取
@@ -313,30 +386,34 @@ const pick = () => {
 function changeAction(mode) {
   // console.log(mode)
   switch (mode) {
-    case 'erase':
-      canvasRef.value.freeDrawingBrush = new fabric.EraserBrush(canvasRef.value);
+    case "erase":
+      canvasRef.value.freeDrawingBrush = new fabric.EraserBrush(
+        canvasRef.value
+      );
       canvasRef.value.freeDrawingBrush.width = eraser.value;
       break;
-    case 'undoErasing':
-      canvasRef.value.freeDrawingBrush = new fabric.PencilBrush(canvasRef.value);
+    case "undoErasing":
+      canvasRef.value.freeDrawingBrush = new fabric.PencilBrush(
+        canvasRef.value
+      );
       canvasRef.value.freeDrawingBrush.color = brushColor.value;
       canvasRef.value.freeDrawingBrush.width = brushNum.value;
-      canvasRef.value.freeDrawingBrush.selectable = false
+      canvasRef.value.freeDrawingBrush.selectable = false;
     default:
       break;
   }
 }
 
- // 匯出圖片
- const exportImage = () => {
-    if (!canvasRef.value) return
-    
-    const dataURL = canvasRef.value.toDataURL('image/png')
-    const link = document.createElement('a')
-    link.download = 'drawing.png'
-    link.href = dataURL
-    link.click()
-  }
+// 匯出圖片
+const exportImage = () => {
+  if (!canvasRef.value) return;
+
+  const dataURL = canvasRef.value.toDataURL("image/png");
+  const link = document.createElement("a");
+  link.download = "drawing.png";
+  link.href = dataURL;
+  link.click();
+};
 
 onMounted(() => {
   // drawCanvas();

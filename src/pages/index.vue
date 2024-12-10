@@ -1,7 +1,7 @@
 <template>
   <div style="width: 800px; height: 800px;">
     <DrawingBoard />
-    <DrawingBoardN />
+    <!-- <DrawingBoardN /> -->
   </div>
   
 </template>
