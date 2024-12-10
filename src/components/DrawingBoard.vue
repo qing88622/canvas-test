@@ -73,15 +73,15 @@ const brushColor = ref('#ff0000');
 const paintBrush = ref(false);
 
 // 畫筆粗細
-const brushNum = ref(10);
+const brushNum = ref(20);
 
 // 橡皮擦粗細滑塊顯示/隱藏
 const paintEraser = ref(false);
 
 // 橡皮擦粗細
-const eraser = ref(10);
+const eraser = ref(20);
 
-// 當前狀態為畫筆/橡皮擦
+// 當前狀態為 畫筆false/橡皮擦true
 const fabricStatus = ref(false);
 
 // 撤銷的快照陣列，用來記錄歷史
@@ -204,12 +204,14 @@ const changeEraserNum = () => {
   changeAction(fabricStatus.value ? 'erase' : 'undoErasing');
 };
 
+//繪圖/選取
 const pick = () => {
-  canvasRef.value.isDrawingMode = false;
+  canvasRef.value.isDrawingMode = !canvasRef.value.isDrawingMode;
 };
 
 // 修改畫布行為模式
 function changeAction(mode) {
+  // console.log(mode)
   switch (mode) {
     case 'erase':
       canvasRef.value.freeDrawingBrush = new fabric.EraserBrush(canvasRef.value);
